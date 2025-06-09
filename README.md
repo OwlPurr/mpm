@@ -1,4 +1,4 @@
-# MPM Simulation Engine
+# Simulation code using MPM
 
 個人制作の物理シミュレーションエンジン
 
