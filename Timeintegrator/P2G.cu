@@ -49,10 +49,6 @@ __global__ void P2G_simple(
         static_cast<int>(par_x.y)-1,
         static_cast<int>(par_x.z)-1
     };
-    int x,y,z;
-    x = smallest_node[0] & 0x3;
-    y = smallest_node[1] & 0x3;
-    z = smallest_node[2] & 0x3;
     Vector3<float> c_dst, vel;
     for(int j=0; j<3; j++){
         for(int k=0; k<3; k++){
