@@ -15,6 +15,8 @@
 
 ## デモGIF
 - ![cool_particles](https://github.com/user-attachments/assets/1967f114-ec7c-4aca-ab43-30287ff17d5c)
+- ![mochi](https://github.com/user-attachments/assets/68712171-d710-4601-938e-78206ce9beb3)
+
 
 ## 使い方
 - ディレクトリに入りmkdir build; cd build; cmake ..; make
