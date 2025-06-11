@@ -180,11 +180,6 @@ template <typename T>
 void linearSolver(   
     NodesData<T> cdata, 
     ParticlesData<T> pdata, 
-    int* d_cellids, 
-    int* d_block_offsets, 
-    int* d_targetPages, 
-    int* d_virtualPageOffsets, 
-    int CUDABlock_num,
     const int c_row,
     const int c_n, 
     const int p_n,
