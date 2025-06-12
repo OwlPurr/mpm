@@ -33,13 +33,13 @@
    make
    ```
 
-2. 実行前に `output` フォルダを作成（出力先用）：
+2. 実行前に`mpm`ディレクトリ下に`output` フォルダを作成（出力先用）：
 
    ```bash
    mkdir ../output
    ```
 
-3. 実行ファイルを実行：
+3. `build`ディレクトリ内で実行ファイルを実行：
 
    ```bash
    ./mpm_cuda_executable
