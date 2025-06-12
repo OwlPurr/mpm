@@ -73,6 +73,6 @@ anim = FuncAnimation(fig, update,
                     init_func=init,
                     blit=False)
 
-anim.save("../output/mochi.gif", writer="pillow", fps=15, dpi=150)
+anim.save("../output/mochi.gif", writer="pillow", fps=10, dpi=50)
 plt.close()
 

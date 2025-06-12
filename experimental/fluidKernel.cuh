@@ -16,17 +16,16 @@
 #include <type_traits>
 #include <math.h>
 
-#include "Particle/particleKernels.cuh"
-#include "Particle/particleDomain.cuh"
-#include "Math/vector3.cuh"
-#include "Math/matrix3x3.cuh"
-#include "Timeintegrator/G2P.cuh"
-#include "Timeintegrator/P2G.cuh"
+#include "../Particle/particleDomain.cuh"
+#include "../Math/vector3.cuh"
+#include "../Math/matrix3x3.cuh"
+#include "../Timeintegrator/G2P.cuh"
+#include "../Timeintegrator/P2G.cuh"
 
-namespace{
+namespace sim{
     
 __global__
-void calcDivVel(float* d_y, NodesData<float> cdata, const size_t c_row, const size_t c_n){
+void calcDivVel(float* d_y, NodesData<float> cdata, const size_t c_row, const size_t c_n, const float dt){
     //Velocity Computation
     int i = blockIdx.x*blockDim.x + threadIdx.x;
 
@@ -39,37 +38,25 @@ void calcDivVel(float* d_y, NodesData<float> cdata, const size_t c_row, const si
     int c = i % c_row;
 
     d_y[i] = 0.f;
-    if(a>0 && a<c_row-1 && b>0 && b<c_row-1 && c>0 && c<c_row-1 && mass != 0.f){
+    if(a>0 && a<c_row-1 && b>0 && b<c_row-1 && c>0 && c<c_row-1 && mass >= 1.e-9){
+        
         for(int j=-1; j<2; j++){
             for(int k=-1; k<2; k++){
                 int count = abs(j) + abs(k);
                 float coe = 0.125 * std::pow(0.5,count);
                 d_y[i] += coe*cdata.vel[(a+1)*c_row*c_row+(b+j)*c_row+c+k](0);
-                if(cdata.mass[(a+1)*c_row*c_row+(b+j)*c_row+c+k]==0.f) d_y[i] += mass*coe*v(0);
                 d_y[i] -= coe*cdata.vel[(a-1)*c_row*c_row+(b+j)*c_row+c+k](0);
-                if(cdata.mass[(a-1)*c_row*c_row+(b+j)*c_row+c+k]==0.f) d_y[i] -= mass*coe*v(0);
                 d_y[i] += coe*cdata.vel[(a+j)*c_row*c_row+(b+1)*c_row+c+k](1);
-                if(cdata.mass[(a+j)*c_row*c_row+(b+1)*c_row+c+k]==0.f) d_y[i] += mass*coe*v(1);
                 d_y[i] -= coe*cdata.vel[(a+j)*c_row*c_row+(b-1)*c_row+c+k](1);
-                if(cdata.mass[(a+j)*c_row*c_row+(b-1)*c_row+c+k]==0.f) d_y[i] -= mass*coe*v(1);
                 d_y[i] += coe*cdata.vel[(a+j)*c_row*c_row+(b+k)*c_row+c+1](2);
-                if(cdata.mass[(a+j)*c_row*c_row+(b+k)*c_row+c+1]==0.f) d_y[i] += mass*coe*v(2);
                 d_y[i] -= coe*cdata.vel[(a+j)*c_row*c_row+(b+k)*c_row+c-1](2);
-                if(cdata.mass[(a+j)*c_row*c_row+(b+k)*c_row+c-1]==0.f) d_y[i] -= mass*coe*v(2);
             }
         }
-
-        if(cdata.volume[i]!= 0.f){
-            d_y[i] = d_y[i] / cdata.volume[i];
-        }else{
-            d_y[i] = 0.f;
-        }
-
     }
 }
 
 __global__
-void addPressureGrad(float* d_x, NodesData<float> cdata, const size_t c_row, const size_t c_n){
+void addPressureGrad(float* d_x, NodesData<float> cdata, const size_t c_row, const size_t c_n, const float dt){
     //Velocity Computation
     int i = blockIdx.x*blockDim.x + threadIdx.x;
 
@@ -81,27 +68,57 @@ void addPressureGrad(float* d_x, NodesData<float> cdata, const size_t c_row, con
     int b = (i % (c_row*c_row)) / c_row;
     int c = i % c_row;
 
-    if(a>0 && a<c_row-1 && b>0 && b<c_row-1 && c>0 && c<c_row-1 && mass != 0.f){
+    if(a>0 && a<c_row-1 && b>0 && b<c_row-1 && c>0 && c<c_row-1 && mass >= 1.e-9){
+        
         for(int j=-1; j<2; j++){
             for(int k=-1; k<2; k++){
                 int count = abs(j) + abs(k);
-                float coe = 0.125 * std::pow(0.5,count);
-                cdata.vel[i](0) -= coe*d_x[(a+1)*c_row*c_row+(b+j)*c_row+c+k];
-                //if(cdata.mass[(a+1)*c_row*c_row+(b+j)*c_row+c+k]==0.f) cdata.vel[i](0) += mass*coe*d_x[i];
-                cdata.vel[i](0) += coe*d_x[(a-1)*c_row*c_row+(b+j)*c_row+c+k];
-                //if(cdata.mass[(a-1)*c_row*c_row+(b+j)*c_row+c+k]==0.f) cdata.vel[i](0) -= mass*coe*d_x[i];
-                cdata.vel[i](1) -= coe*d_x[(a+j)*c_row*c_row+(b+1)*c_row+c+k];
-                //if(cdata.mass[(a+j)*c_row*c_row+(b+1)*c_row+c+k]==0.f) cdata.vel[i](1) += mass*coe*d_x[i];
-                cdata.vel[i](1) += coe*d_x[(a+j)*c_row*c_row+(b-1)*c_row+c+k];
-                //if(cdata.mass[(a+j)*c_row*c_row+(b-1)*c_row+c+k]==0.f) cdata.vel[i](1) -= mass*coe*d_x[i];
-                cdata.vel[i](2) -= coe*d_x[(a+j)*c_row*c_row+(b+k)*c_row+c+1];
-                //if(cdata.mass[(a+j)*c_row*c_row+(b+k)*c_row+c+1]==0.f) cdata.vel[i](2) += mass*coe*d_x[i];
-                cdata.vel[i](2) += coe*d_x[(a+j)*c_row*c_row+(b+k)*c_row+c-1];
-                //if(cdata.mass[(a+j)*c_row*c_row+(b+k)*c_row+c-1]==0.f) cdata.vel[i](2) -= mass*coe*d_x[i];
+                float coe = -dt*0.125 * std::pow(0.5,count);
+                cdata.vel[i](0) += coe*d_x[(a+1)*c_row*c_row+(b+j)*c_row+c+k];
+                
+                cdata.vel[i](0) -= coe*d_x[(a-1)*c_row*c_row+(b+j)*c_row+c+k];
+                
+                cdata.vel[i](1) += coe*d_x[(a+j)*c_row*c_row+(b+1)*c_row+c+k];
+                
+                cdata.vel[i](1) -= coe*d_x[(a+j)*c_row*c_row+(b-1)*c_row+c+k];
+                
+                cdata.vel[i](2) += coe*d_x[(a+j)*c_row*c_row+(b+k)*c_row+c+1];
+                
+                cdata.vel[i](2) -= coe*d_x[(a+j)*c_row*c_row+(b+k)*c_row+c-1];
+                
             }
         }
     }
 }
+
+__global__
+void funcA(float* d_Avec, float* d_p, NodesData<float> cdata, const size_t c_row, const size_t c_n, const float dt) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= c_n) return;
+
+    int a = i / (c_row * c_row);
+    int b = (i % (c_row * c_row)) / c_row;
+    int c = i % c_row;
+
+    float laplacian = 0.0f;
+    if (a > 0 && a < c_row - 1 && b > 0 && b < c_row - 1 && c > 0 && c < c_row - 1) {
+        float p_center = d_p[i];
+
+
+        int ip1 = i + c_row * c_row;
+        int im1 = i - c_row * c_row;
+        int jp1 = i + c_row;
+        int jm1 = i - c_row;
+        int kp1 = i + 1;
+        int km1 = i - 1;
+
+
+        laplacian = (6.0f * p_center - d_p[ip1] - d_p[im1] - d_p[jp1] - d_p[jm1] - d_p[kp1] - d_p[km1]);
+
+    }
+    d_Avec[i] = dt*laplacian;
+}
+
 
 __global__
 void projectPressure(float* d_x, const size_t c_row, const size_t c_n){
@@ -136,37 +153,6 @@ void projectPressure(float* d_x, const size_t c_row, const size_t c_n){
     }
 }
 
-__global__
-void funcA(float* d_Avec, float* d_p, const size_t c_row, const size_t c_n, const float dt) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= c_n) return;
-
-    int a = i / (c_row * c_row);
-    int b = (i % (c_row * c_row)) / c_row;
-    int c = i % c_row;
-
-
-    if (a > 0 && a < c_row - 1 && b > 0 && b < c_row - 1 && c > 0 && c < c_row - 1) {
-        float p_center = d_p[i];
-
-
-        int ip1 = i + c_row * c_row;
-        int im1 = i - c_row * c_row;
-        int jp1 = i + c_row;
-        int jm1 = i - c_row;
-        int kp1 = i + 1;
-        int km1 = i - 1;
-
-
-        float laplacian = (6.0f * p_center - d_p[ip1] - d_p[im1] - d_p[jp1] - d_p[jm1] - d_p[kp1] - d_p[km1]);
-
-        // A*p = dt * ∇²p を計算
-        d_Avec[i] = dt * laplacian;
-    } else {
-        d_Avec[i] = 0.0f; 
-    }
-}
-
 #define CUDA_CHECK(call) \
     do { \
         cudaError_t err = call; \
@@ -180,11 +166,6 @@ template <typename T>
 void linearSolver(   
     NodesData<T> cdata, 
     ParticlesData<T> pdata, 
-    int* d_cellids, 
-    int* d_block_offsets, 
-    int* d_targetPages, 
-    int* d_virtualPageOffsets, 
-    int CUDABlock_num,
     const int c_row,
     const int c_n, 
     const int p_n,
@@ -204,7 +185,7 @@ void linearSolver(
     cudaMalloc(&d_y, c_n*sizeof(T));
     cudaMalloc(&d_r, c_n*sizeof(T));
 
-    calcDivVel<<<gridCell, block>>>(d_y, cdata, c_row, c_n); // this calc d_y(=Div of vel) using c_data
+    calcDivVel<<<gridCell, block>>>(d_y, cdata, c_row, c_n, dt); // this calc d_y(=Div of vel) using c_data
     CUDA_CHECK(cudaDeviceSynchronize());
     //float yy;
     //cublasSdot(handle, c_n, d_y, 1, d_y, 1, &yy);
@@ -230,17 +211,17 @@ void linearSolver(
     T rr, rr_new;
     cublasSdot(handle, c_n, d_r, 1, d_r, 1, &rr_new);
     int ite = 0;
-    float tolerance = 1.0e-8;
+    float tolerance = 1.0e-2;
     
-    while(ite < 50){
-        funcA<<<gridCell, block>>>(d_Avec, d_p, c_row, c_n, dt); // hessian operation, Avec = A*p
+    while(ite < 500){
+        funcA<<<gridCell, block>>>(d_Avec, d_p, cdata, c_row, c_n, dt); // hessian operation, Avec = A*p
         CUDA_CHECK(cudaDeviceSynchronize());
 
         cublasSdot(handle, c_n, d_r, 1, d_r, 1, &rr);
         float pAp;
         cublasSdot(handle, c_n, d_p, 1, d_Avec, 1, &pAp);
-        std::cout << "pAp: " << pAp << std::endl;
-        std::cout << "rr: " << rr << std::endl;
+        //std::cout << "pAp: " << pAp << std::endl;
+        //std::cout << "rr: " << rr << std::endl;
         if(pAp < tolerance) break;
         float alpha = rr / pAp;
         //cout << "alpha: " << alpha << endl;
@@ -248,22 +229,23 @@ void linearSolver(
         cublasSaxpy(handle, c_n, &alpha, d_Avec, 1, d_r, 1);
 
         cublasSdot(handle, c_n, d_r, 1, d_r, 1, &rr_new);
-        if(rr < tolerance) break;
+        if(rr < tolerance || rr_new < tolerance) break;
         float beta = rr_new / rr;
-        std::cout << "linear solver error: " << sqrt(rr_new)  << " iteration: " << ite << std::endl;
+        //std::cout << "linear solver error: " << sqrt(rr_new)  << " iteration: " << ite << std::endl;
         
         cublasSscal(handle, c_n, &beta, d_p, 1);
-        float minus_one = -1.0f;
         cublasSaxpy(handle, c_n, &minus_one, d_r, 1, d_p, 1);
     
         
         ite++;
     }
     
-    projectPressure<<<gridCell, block>>>(d_x, c_row, c_n); // update cdata.vel
+    projectPressure<<<gridCell, block>>>(d_x, c_row, c_n);
     CUDA_CHECK(cudaDeviceSynchronize());
-    addPressureGrad<<<gridCell, block>>>(d_x, cdata, c_row, c_n); // update cdata.vel
+    addPressureGrad<<<gridCell, block>>>(d_x, cdata, c_row, c_n, dt); // update cdata.vel
     CUDA_CHECK(cudaDeviceSynchronize());
+    //forceCalcParticleFluidPressure_Implicit<<<gridParticle, block>>>(cdata, pdata, c_row, p_n, dt, d_x);
+    //CUDA_CHECK(cudaDeviceSynchronize());
 
     cublasDestroy(handle);
     cudaFree(d_p);

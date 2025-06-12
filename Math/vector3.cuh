@@ -70,14 +70,36 @@ struct Vector3 {
     }
 
     __host__ __device__
-    Vector3& operator/=(T scalar) {
-        x /= scalar; y /= scalar; z /= scalar;
-        return *this;
+    Vector3 operator/(T scalar) const {
+        assert(scalar != T(0));  // ホスト側のみ、またはデバッグ用
+        return Vector3(x / scalar, y / scalar, z / scalar);
     }
 
     __host__ __device__
     Vector3 operator-() const {
         return Vector3(-x, -y, -z);
+    }
+
+    __host__ __device__
+    bool operator==(const Vector3& other) const {
+        return x == other.x && y == other.y && z == other.z;
+    }
+
+    __host__ __device__
+    bool operator!=(const Vector3& other) const {
+        return !(*this == other);
+    }
+
+    __host__ __device__
+    bool is_zero(T eps = T(1e-6)) const {
+        return fabs(x) < eps && fabs(y) < eps && fabs(z) < eps;
+    }
+
+    __host__ __device__
+    Vector3& operator=(const Vector3& other) {
+        if (this == &other) return *this; // 自己代入チェック
+        x = other.x; y = other.y; z = other.z;
+        return *this;
     }
 };
 

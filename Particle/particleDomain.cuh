@@ -96,6 +96,16 @@ public:
         };
     }
 
+    NodesData<T> getCPUData(){
+        return NodesData<T>{
+            thrust::raw_pointer_cast(this->h_pos_.data()),
+            thrust::raw_pointer_cast(this->h_vel_.data()),
+            thrust::raw_pointer_cast(this->h_mass_.data()),
+            thrust::raw_pointer_cast(this->h_volume_.data()),
+            this->num_
+        };
+    }
+
 protected:
     // Default implementation
     virtual void upload() {
@@ -169,6 +179,19 @@ public:
         };
     }
 
+    ParticlesData<T> getCPUData() {
+        return ParticlesData<T>{
+            thrust::raw_pointer_cast(this->h_pos_.data()),
+            thrust::raw_pointer_cast(this->h_vel_.data()),
+            thrust::raw_pointer_cast(this->h_mass_.data()),
+            thrust::raw_pointer_cast(this->h_volume_.data()),
+            this->num_,
+            thrust::raw_pointer_cast(this->h_C_.data()),
+            thrust::raw_pointer_cast(this->h_F_.data()),
+            thrust::raw_pointer_cast(this->h_eq_16_term_0_.data())
+        };
+    }
+
     void printInfo(std::ostream& os = std::cout) const noexcept override{
         os << "[Particles] Count = " << Base::num_ << " | Structure: SoA | Dimension: 3D\n";
 
@@ -235,6 +258,10 @@ public:
             if(Base::d_mass_[i]!=0.f) os << Base::d_mass_[i]/Base::d_volume_[i] << std::endl;
         }
         */
+        os << Base::d_vel_[32*32*31+32*31+31] << "\n";
+        os << Base::d_vel_[32*32*31+32*0+31] << "\n";
+        os << Base::d_vel_[32*32*31+32*0+31] << "\n";
+        os << Base::d_vel_[32*32*0+32*0+31] << "\n";
     }
 
     void reset(){
